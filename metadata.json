@@ -1,0 +1,6 @@
+{
+  "name": "DriveLab — 3D Open-World Racing Adventure",
+  "description": "An expansive 3D open-world arcade racing adventure with three unlockable regions, 12 upgradeable vehicles, story campaign, dynamic weather, rivals, and realistic arcade physics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

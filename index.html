@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DriveLab — 3D Open-World Racing Adventure</title>
+  <meta name="description" content="An expansive 3D open-world arcade racing adventure with three unlockable regions, 12 upgradeable vehicles, story campaign, dynamic weather, rivals, and realistic arcade physics.">
+  <meta property="og:title" content="DriveLab — 3D Open-World Racing Adventure">
+  <meta property="og:description" content="An expansive 3D open-world arcade racing adventure with three unlockable regions, 12 upgradeable vehicles, story campaign, dynamic weather, rivals, and realistic arcade physics.">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="style.css">
+  <!-- Three.js r128 CDN for universal reliability across all browsers and file/http hosts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+  <!-- 3D Canvas Container -->
+  <div id="game-container">
+    <canvas id="webgl-canvas"></canvas>
+  </div>
+
+  <!-- Rain FX Overlay Canvas -->
+  <canvas id="weather-canvas" class="weather-overlay"></canvas>
+
+  <!-- Speed Lines / Nitro Overlay -->
+  <div id="speed-lines" class="speed-lines-fx"></div>
+
+  <!-- Crash / Damage Hit Flash -->
+  <div id="hit-flash" class="hit-flash-overlay"></div>
+
+  <!-- High-Speed Crash VFX Overlay & Banner -->
+  <div id="crash-overlay" class="crash-overlay">
+    <div class="crash-vignette"></div>
+    <div id="crash-banner" class="crash-banner">
+      <div class="crash-icon">💥</div>
+      <div class="crash-text-group">
+        <div class="crash-title">CRASH!</div>
+        <div id="crash-speed" class="crash-speed">68 KM/H IMPACT</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stunt Jump Notification Banner -->
+  <div id="stunt-banner" class="stunt-banner">
+    <span class="stunt-icon">🚀</span>
+    <div>
+      <div class="stunt-title">STUNT JUMP!</div>
+      <div id="stunt-speed" class="stunt-speed">AIRBORNE</div>
+    </div>
+  </div>
+
+  <!-- Master UI Wrapper (pointer-events: none by default, buttons have pointer-events: auto) -->
+  <div id="ui-layer">
+
+    <!-- TOP HEADER BAR (In-Game / Free Roam) -->
+    <header id="top-bar" class="hud-panel hidden">
+      <div class="hud-brand">
+        <span class="brand-logo">DRIVE<span class="accent-cyan">LAB</span></span>
+        <span id="hud-world-tag" class="hud-badge">METROVALE</span>
+      </div>
+      <div class="hud-stats-group">
+        <div class="stat-pill">
+          <span class="stat-label">CREDITS</span>
+          <span id="hud-credits" class="stat-val tabular">1,500 CR</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">REP</span>
+          <span id="hud-rep" class="stat-val tabular">LVL 1</span>
+        </div>
+        <div id="hud-roam-collectibles" class="stat-pill highlight-gold">
+          <span class="stat-label">EXPLORE</span>
+          <span id="hud-collectibles-val" class="stat-val tabular">🪙 0 · 🔑 0 KEYS</span>
+        </div>
+        <button id="btn-quick-map" class="hud-btn" title="Open World Map (M)">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M15 19l-6-2.11L3.35 19A1 1 0 0 1 2 18.06V4.74a1 1 0 0 1 .65-.94l6.35-2.22 6 2.11 5.65-1.97A1 1 0 0 1 22 2.66v13.32a1 1 0 0 1-.65.94L15 19zM4 5.88v11l4-1.4V4.48L4 5.88zm6-1.4v11l4 1.4V5.88L10 4.48zm6 1.4v11l4-1.4V4.48L16 5.88z"/></svg>
+          <span>MAP</span>
+        </button>
+        <button id="btn-quick-garage" class="hud-btn" title="Return to Garage (G)">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 19H5V8h14v11zM19 6H5l7-4 7 4zM7 10v7h2v-7H7zm4 0v7h2v-7h-2zm4 0v7h2v-7h-2z"/></svg>
+          <span>GARAGE</span>
+        </button>
+        <button id="btn-quick-audio" class="hud-btn icon-only" title="Toggle Audio (Mute)">
+          <svg id="icon-sound-on" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+          <svg id="icon-sound-off" class="hidden" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27l4.73 4.73H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+        </button>
+        <button id="btn-pause" class="hud-btn icon-only" title="Pause Menu (ESC)">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- MISSION / EVENT BANNER (Top Center) -->
+    <div id="mission-hud" class="mission-status-box hidden">
+      <div class="mission-header">
+        <span id="mission-badge" class="badge-accent">RACE EVENT</span>
+        <h3 id="mission-title">CIRCUIT CLASH: DOWNTOWN</h3>
+      </div>
+      <div id="mission-objective-text" class="mission-desc">Pass through all checkpoints to win the race.</div>
+      <div class="mission-readouts">
+        <div id="hud-lap-container" class="hud-metric">
+          <span class="metric-label">LAP</span>
+          <span id="hud-lap-val" class="metric-val tabular">1 / 2</span>
+        </div>
+        <div id="hud-pos-container" class="hud-metric">
+          <span class="metric-label">POS</span>
+          <span id="hud-pos-val" class="metric-val tabular">1 / 4</span>
+        </div>
+        <div id="hud-time-container" class="hud-metric">
+          <span class="metric-label">TIME</span>
+          <span id="hud-time-val" class="metric-val tabular">00:00.0</span>
+        </div>
+        <div id="hud-checkpoint-container" class="hud-metric">
+          <span class="metric-label">GATE</span>
+          <span id="hud-checkpoint-val" class="metric-val tabular">1 / 8</span>
+        </div>
+        <div id="hud-drift-container" class="hud-metric hidden">
+          <span class="metric-label">DRIFT PTS</span>
+          <span id="hud-drift-val" class="metric-val tabular highlight-cyan">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RACE COUNTDOWN OVERLAY -->
+    <div id="countdown-overlay" class="countdown-modal hidden">
+      <div id="countdown-number" class="countdown-display">3</div>
+      <div id="countdown-sub" class="countdown-subtext">GET READY</div>
+    </div>
+
+    <!-- INTERACTION PROMPT ("Press E to Start Event") -->
+    <div id="interaction-prompt" class="interaction-card hidden">
+      <div class="interact-key">E</div>
+      <div class="interact-info">
+        <span id="interact-title" class="interact-heading">Street Race Challenge</span>
+        <span id="interact-sub" class="interact-sub">Reward: 1,200 CR · Press E or Tap to Start</span>
+      </div>
+      <button id="btn-interact-action" class="btn-primary-mini">START</button>
+    </div>
+
+    <!-- RADAR / MINI-MAP (Bottom Left) -->
+    <div id="radar-container" class="radar-box hidden">
+      <canvas id="radar-canvas" width="160" height="160"></canvas>
+      <div class="radar-crosshair"></div>
+      <div class="radar-label">RADAR · 350M</div>
+    </div>
+
+    <!-- SPEEDOMETER & TACHOMETER CLUSTER (Bottom Right) -->
+    <div id="gauge-cluster" class="gauge-cluster-panel hidden">
+      <div class="cluster-digital">
+        <div class="speed-unit-wrap">
+          <span id="hud-speed-num" class="digital-speed tabular">0</span>
+          <span class="speed-unit">KM/H</span>
+        </div>
+        <div class="gear-badge">
+          <span class="gear-sub">GEAR</span>
+          <span id="hud-gear-num" class="gear-val">N</span>
+        </div>
+      </div>
+
+      <!-- RPM Bar -->
+      <div class="rpm-bar-wrap">
+        <div class="rpm-labels">
+          <span>0</span>
+          <span>4</span>
+          <span>8</span>
+          <span class="redline-txt">10K</span>
+        </div>
+        <div class="rpm-track">
+          <div id="hud-rpm-fill" class="rpm-fill"></div>
+        </div>
+      </div>
+
+      <!-- Nitro Boost Gauge -->
+      <div class="nitro-bar-wrap">
+        <div class="nitro-header">
+          <span class="nitro-tag"><svg width="10" height="10" viewBox="0 0 24 24"><path fill="currentColor" d="M7 2v11h3v9l7-12h-4l3-8z"/></svg> NITRO (SHIFT)</span>
+          <span id="hud-nitro-val" class="nitro-pct">100%</span>
+        </div>
+        <div class="nitro-track">
+          <div id="hud-nitro-fill" class="nitro-fill"></div>
+        </div>
+      </div>
+
+      <!-- Quick Driving Action Buttons -->
+      <div class="quick-drive-buttons">
+        <button id="btn-cam-switch" class="btn-micro" title="Switch Camera (C)">CAM: CHASE</button>
+        <button id="btn-car-reset" class="btn-micro" title="Reset Car (R)">RESET</button>
+      </div>
+    </div>
+
+    <!-- COLLAPSIBLE BOTTOM FREE-ROAM DOCK (Zero Viewport Occlusion) -->
+    <div id="bottom-dock" class="bottom-dock-wrapper hidden">
+      <button id="btn-toggle-dock" class="dock-toggle-btn" title="Toggle Dock (H)">
+        <span id="dock-toggle-icon">▾</span> <span id="dock-toggle-text">DOCK</span>
+      </button>
+      <div id="dock-inner" class="dock-bar">
+        <div class="dock-group">
+          <span class="dock-label">WEATHER</span>
+          <button id="btn-weather-clear" class="dock-btn active">CLEAR</button>
+          <button id="btn-weather-rain" class="dock-btn">RAIN</button>
+          <button id="btn-weather-night" class="dock-btn">NIGHT</button>
+          <button id="btn-weather-sunset" class="dock-btn">SUNSET</button>
+        </div>
+        <div class="dock-divider"></div>
+        <div class="dock-group">
+          <span class="dock-label">TRAFFIC</span>
+          <button id="btn-traffic-toggle" class="dock-btn active">CIVILIAN ON</button>
+        </div>
+        <div class="dock-divider"></div>
+        <div class="dock-group">
+          <span class="dock-label">AUDIO SYNTH</span>
+          <button id="btn-music-toggle" class="dock-btn active">BGM: ACTIVE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MOBILE TOUCH CONTROLS (Displayed when touch device detected or forced) -->
+    <div id="mobile-controls" class="mobile-touch-layer hidden">
+      <!-- Steering (Left Side) -->
+      <div class="touch-steer-zone">
+        <button id="btn-touch-left" class="touch-btn touch-steer" aria-label="Steer Left">◀</button>
+        <button id="btn-touch-right" class="touch-btn touch-steer" aria-label="Steer Right">▶</button>
+      </div>
+
+      <!-- Gas, Brake, Handbrake, Nitro (Right Side) -->
+      <div class="touch-pedals-zone">
+        <div class="touch-action-row">
+          <button id="btn-touch-nitro" class="touch-btn touch-nitro" aria-label="Nitro Boost">⚡ NITRO</button>
+          <button id="btn-touch-handbrake" class="touch-btn touch-handbrake" aria-label="Handbrake">DRFT</button>
+        </div>
+        <div class="touch-pedal-row">
+          <button id="btn-touch-brake" class="touch-btn touch-brake" aria-label="Brake or Reverse">BRAKE</button>
+          <button id="btn-touch-gas" class="touch-btn touch-gas" aria-label="Accelerate">GAS</button>
+        </div>
+      </div>
+
+      <!-- Quick mobile utilities (Top Floating) -->
+      <div class="touch-util-row">
+        <button id="btn-touch-reset" class="touch-util-btn" aria-label="Reset Car">↺ RESET</button>
+        <button id="btn-touch-cam" class="touch-util-btn" aria-label="Change Camera">📷 CAM</button>
+        <button id="btn-touch-pause" class="touch-util-btn" aria-label="Pause Menu">⏸</button>
+      </div>
+    </div>
+
+    <!-- ==================== SCREENS & MODALS ==================== -->
+
+    <!-- 1. TITLE SCREEN / MAIN MENU -->
+    <div id="screen-title" class="screen-overlay">
+      <div class="title-hero-content">
+        <!-- Bespoke Inline SVG Title Lockup with Cyber Decals -->
+        <div class="title-logo-lockup">
+          <svg class="title-svg" viewBox="0 0 600 120" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#ffffff"/>
+                <stop offset="50%" stop-color="#00f0ff"/>
+                <stop offset="100%" stop-color="#0077ff"/>
+              </linearGradient>
+              <linearGradient id="neonGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#a855f7"/>
+                <stop offset="50%" stop-color="#00f0ff"/>
+                <stop offset="100%" stop-color="#38bdf8"/>
+              </linearGradient>
+            </defs>
+            <!-- Background speed lines -->
+            <path d="M 20,95 L 580,95" stroke="rgba(0,240,255,0.2)" stroke-width="2" stroke-dasharray="8 6"/>
+            <path d="M 50,105 L 550,105" stroke="rgba(168,85,247,0.3)" stroke-width="1.5"/>
+            <!-- Main Typography -->
+            <text x="300" y="78" text-anchor="middle" font-family="'Impact', 'Arial Black', sans-serif" font-size="76" font-style="italic" letter-spacing="4" fill="url(#titleGrad)" stroke="#040914" stroke-width="4">
+              DRIVELAB
+            </text>
+            <text x="300" y="105" text-anchor="middle" font-family="'Courier New', monospace" font-size="12" font-weight="bold" letter-spacing="8" fill="#00f0ff">
+              3D OPEN-WORLD RACING ADVENTURE
+            </text>
+          </svg>
+        </div>
+
+        <p class="title-tagline">Three expansive open regions · 12 upgradeable tuner & supercars · Campaign progression</p>
+
+        <div class="title-actions">
+          <button id="btn-title-play" class="btn-hero-start">
+            <span class="btn-text">START ENGINE</span>
+            <span class="btn-hint">ENTER / SPACE</span>
+          </button>
+          <div class="title-sub-actions">
+            <button id="btn-title-garage" class="btn-glass">GARAGE & TUNING</button>
+            <button id="btn-title-worlds" class="btn-glass">MAP SELECT</button>
+            <button id="btn-title-campaign" class="btn-glass">CAMPAIGN LOG</button>
+            <button id="btn-title-settings" class="btn-glass">SETTINGS</button>
+          </div>
+        </div>
+
+        <!-- Single flat control hint line -->
+        <div class="control-hint-line">
+          <span>WASD / ARROWS Drive</span>
+          <span class="dot">·</span>
+          <span>SPACE Drift / Handbrake</span>
+          <span class="dot">·</span>
+          <span>SHIFT Nitro Boost</span>
+          <span class="dot">·</span>
+          <span>C Camera</span>
+          <span class="dot">·</span>
+          <span>R Recover</span>
+          <span class="dot">·</span>
+          <span>ESC Pause</span>
+        </div>
+      </div>
+      <div class="title-version-badge">v1.2.0 PBR ENGINE · LOCAL SAVE ENABLED</div>
+    </div>
+
+    <!-- 2. STORY CAMPAIGN DIALOGUE / BRIEFING MODAL -->
+    <div id="modal-dialogue" class="modal-dialog-overlay hidden">
+      <div class="dialogue-card">
+        <div class="dialogue-character-pane">
+          <div id="dialogue-avatar" class="dialogue-portrait">
+            <div id="avatar-icon" class="avatar-sym">🏎</div>
+          </div>
+          <div class="character-identity">
+            <span id="dialogue-character-name" class="character-name">AXEL VANCE</span>
+            <span id="dialogue-character-role" class="character-role">METROVALE STREET DRIFT RIVAL</span>
+          </div>
+        </div>
+        <div class="dialogue-body-pane">
+          <div id="dialogue-chapter-tag" class="chapter-tag">CHAPTER 1: THE UNDERGROUND ROOKIE</div>
+          <h2 id="dialogue-heading" class="dialogue-headline">WELCOME TO METROVALE</h2>
+          <p id="dialogue-text" class="dialogue-paragraph">
+            "You think that starter chassis has what it takes around our downtown circuit? Show me clean drifts and hit every checkpoint before the sunset."
+          </p>
+          <div class="dialogue-actions">
+            <button id="btn-dialogue-skip" class="btn-ghost">SKIP (ESC)</button>
+            <button id="btn-dialogue-accept" class="btn-primary">ACCEPT CHALLENGE (ENTER)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. GARAGE & VEHICLE CUSTOMIZATION SCREEN -->
+    <div id="screen-garage" class="screen-overlay screen-garage-wrap hidden">
+      <div class="garage-header">
+        <div class="garage-title-block">
+          <h2>DRIVELAB TUNING GARAGE</h2>
+          <p>Inspect vehicle dynamics, upgrade powertrain, customize paints, and select your ride.</p>
+        </div>
+        <div class="garage-wallet">
+          <span class="wallet-tag">CURRENT FUNDS</span>
+          <span id="garage-credits" class="wallet-val tabular">1,500 CR</span>
+        </div>
+        <button id="btn-garage-back" class="btn-glass">BACK TO DRIVE</button>
+      </div>
+
+      <!-- Garage Left: Vehicle Selector & Specs -->
+      <aside class="garage-sidebar-left">
+        <div class="panel-section-title">VEHICLE ROSTER (12 CARS)</div>
+        <div id="car-roster-list" class="car-scroll-list">
+          <!-- Car items injected via script.js -->
+        </div>
+      </aside>
+
+      <!-- Garage Right: Tuning & Customization Tabs -->
+      <aside class="garage-sidebar-right">
+        <div class="tuning-tabs">
+          <button id="tab-btn-performance" class="tab-btn active">PERFORMANCE</button>
+          <button id="tab-btn-visuals" class="tab-btn">AESTHETICS</button>
+        </div>
+
+        <!-- Performance Upgrades Container -->
+        <div id="tuning-tab-performance" class="tab-content active">
+          <!-- Vehicle Selected Specs -->
+          <div class="spec-overview-card">
+            <div class="spec-name-row">
+              <h3 id="garage-car-name">APEX PULSE</h3>
+              <span id="garage-car-tier" class="badge-tier">TIER 1 · COMPACT TUNER</span>
+            </div>
+            <div class="spec-bars">
+              <div class="spec-bar-row">
+                <span class="spec-label">TOP SPEED</span>
+                <div class="bar-track"><div id="spec-bar-speed" class="bar-fill"></div></div>
+                <span id="spec-val-speed" class="spec-num tabular">210 KM/H</span>
+              </div>
+              <div class="spec-bar-row">
+                <span class="spec-label">ACCELERATION</span>
+                <div class="bar-track"><div id="spec-bar-accel" class="bar-fill"></div></div>
+                <span id="spec-val-accel" class="spec-num tabular">5.8s</span>
+              </div>
+              <div class="spec-bar-row">
+                <span class="spec-label">HANDLING / GRIP</span>
+                <div class="bar-track"><div id="spec-bar-handling" class="bar-fill"></div></div>
+                <span id="spec-val-handling" class="spec-num tabular">78%</span>
+              </div>
+              <div class="spec-bar-row">
+                <span class="spec-label">BRAKING</span>
+                <div class="bar-track"><div id="spec-bar-braking" class="bar-fill"></div></div>
+                <span id="spec-val-braking" class="spec-num tabular">82%</span>
+              </div>
+              <div class="spec-bar-row">
+                <span class="spec-label">NITRO BOOST</span>
+                <div class="bar-track"><div id="spec-bar-nitro" class="bar-fill"></div></div>
+                <span id="spec-val-nitro" class="spec-num tabular">100%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Upgrade Slots -->
+          <div class="upgrade-list">
+            <div class="upgrade-row">
+              <div class="up-info">
+                <span class="up-title">ENGINE TUNING</span>
+                <span id="up-lvl-engine" class="up-lvl">LVL 1/5</span>
+              </div>
+              <button id="btn-up-engine" class="btn-upgrade">UPGRADE (400 CR)</button>
+            </div>
+            <div class="upgrade-row">
+              <div class="up-info">
+                <span class="up-title">TRANSMISSION / ACCEL</span>
+                <span id="up-lvl-trans" class="up-lvl">LVL 1/5</span>
+              </div>
+              <button id="btn-up-trans" class="btn-upgrade">UPGRADE (400 CR)</button>
+            </div>
+            <div class="upgrade-row">
+              <div class="up-info">
+                <span class="up-title">SPORT SUSPENSION & GRIP</span>
+                <span id="up-lvl-grip" class="up-lvl">LVL 1/5</span>
+              </div>
+              <button id="btn-up-grip" class="btn-upgrade">UPGRADE (350 CR)</button>
+            </div>
+            <div class="upgrade-row">
+              <div class="up-info">
+                <span class="up-title">CARBON CERAMIC BRAKES</span>
+                <span id="up-lvl-brakes" class="up-lvl">LVL 1/5</span>
+              </div>
+              <button id="btn-up-brakes" class="btn-upgrade">UPGRADE (300 CR)</button>
+            </div>
+            <div class="upgrade-row">
+              <div class="up-info">
+                <span class="up-title">NITRO INJECTION INTAKE</span>
+                <span id="up-lvl-nitro" class="up-lvl">LVL 1/5</span>
+              </div>
+              <button id="btn-up-nitro" class="btn-upgrade">UPGRADE (450 CR)</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Visuals Customization Tab -->
+        <div id="tuning-tab-visuals" class="tab-content hidden">
+          <div class="custom-block">
+            <span class="custom-header">BODYWORK PAINT COAT</span>
+            <div id="paint-palette" class="palette-swatches">
+              <!-- Swatches injected via JS -->
+            </div>
+          </div>
+          <div class="custom-block">
+            <span class="custom-header">RIM FINISH</span>
+            <div class="pill-options">
+              <button class="pill-opt active" data-rim="chrome">CHROME</button>
+              <button class="pill-opt" data-rim="black">MATTE BLACK</button>
+              <button class="pill-opt" data-rim="gold">RACE GOLD</button>
+              <button class="pill-opt" data-rim="cyan">CYAN NEON</button>
+            </div>
+          </div>
+          <div class="custom-block">
+            <span class="custom-header">AERO SPOILER WING</span>
+            <div class="pill-options">
+              <button class="pill-opt active" data-spoiler="stock">STOCK AERO</button>
+              <button class="pill-opt" data-spoiler="gt">GT CARBON WING</button>
+              <button class="pill-opt" data-spoiler="hyper">HYPER EXTENSION</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Action Button: Buy or Select -->
+        <div class="garage-action-footer">
+          <button id="btn-garage-select-car" class="btn-hero-start full-width">EQUIP VEHICLE</button>
+        </div>
+      </aside>
+
+      <!-- Hint for 3D Turntable -->
+      <div class="garage-turntable-hint">
+        <span>DRAG TO ROTATE 3D CAR PREVIEW</span>
+      </div>
+    </div>
+
+    <!-- 4. WORLD MAP / REGION SELECTOR SCREEN -->
+    <div id="screen-worlds" class="screen-overlay hidden">
+      <div class="world-map-header">
+        <div>
+          <h2>SELECT OPEN-WORLD REGION</h2>
+          <p>Progress through the campaign chapters to unlock all three distinct explorable regions.</p>
+        </div>
+        <button id="btn-worlds-back" class="btn-glass">BACK</button>
+      </div>
+
+      <div class="world-cards-grid">
+        <!-- Region 1 -->
+        <div class="region-card active" data-world="metrovale">
+          <div class="region-banner world-banner-metro">
+            <span class="region-tag">REGION 1</span>
+            <span class="region-status-badge unlocked">UNLOCKED</span>
+          </div>
+          <div class="region-info">
+            <h3>METROVALE</h3>
+            <span class="region-subtitle">Modern Metropolis & Waterfront Highway</span>
+            <p>Urban intersections, high-rise skyscrapers, commercial avenues, highway flyover loops, industrial shipping docks, and civilian traffic.</p>
+            <div class="region-features">
+              <span>Street Racing</span> · <span>Traffic Slalom</span> · <span>Delivery Runs</span> · <span>Tuner Meets</span>
+            </div>
+            <button class="btn-primary full-width mt-3" data-travel="metrovale">ENTER REGION</button>
+          </div>
+        </div>
+
+        <!-- Region 2 -->
+        <div id="card-world-highlands" class="region-card" data-world="highlands">
+          <div class="region-banner world-banner-highlands">
+            <span class="region-tag">REGION 2</span>
+            <span id="badge-world-highlands" class="region-status-badge locked">LOCKED (REP LVL 3)</span>
+          </div>
+          <div class="region-info">
+            <h3>APEX HIGHLANDS</h3>
+            <span class="region-subtitle">Mountain Passes, Cliffs & Alpine Pine Forests</span>
+            <p>Dangerous winding hairpins, mountain canyon bridges, elevation drops, downhill drift curves, and hill-climb showdowns with rival racers.</p>
+            <div class="region-features">
+              <span>Hill-Climbs</span> · <span>Drift Challenges</span> · <span>Canyon Jumps</span> · <span>Rival Duels</span>
+            </div>
+            <button id="btn-travel-highlands" class="btn-primary full-width mt-3" data-travel="highlands" disabled>ENTER REGION</button>
+          </div>
+        </div>
+
+        <!-- Region 3 -->
+        <div id="card-world-neon" class="region-card" data-world="neon">
+          <div class="region-banner world-banner-neon">
+            <span class="region-tag">REGION 3</span>
+            <span id="badge-world-neon" class="region-status-badge locked">LOCKED (REP LVL 5)</span>
+          </div>
+          <div class="region-info">
+            <h3>NEON DISTRICT</h3>
+            <span class="region-subtitle">Futuristic Night Metropolis & Cyber Speedways</span>
+            <p>Hyper-lit holographic towers, elevated skyways, glowing circuit lanes, high-speed drag strips, police interceptor pursuits, and the Grand Championship.</p>
+            <div class="region-features">
+              <span>Grand Championship</span> · <span>Drag Racing</span> · <span>Police Pursuits</span> · <span>Hypercar Arena</span>
+            </div>
+            <button id="btn-travel-neon" class="btn-primary full-width mt-3" data-travel="neon" disabled>ENTER REGION</button>
+          </div>
+        </div>
+
+        <!-- Dedicated Raceway Circuit -->
+        <div class="region-card" data-world="raceway">
+          <div class="region-banner world-banner-raceway">
+            <span class="region-tag">CHAMPIONSHIP CIRCUIT</span>
+            <span class="region-status-badge unlocked">UNLOCKED</span>
+          </div>
+          <div class="region-info">
+            <h3>APEX RACEWAY</h3>
+            <span class="region-subtitle">Dedicated Open Grand Prix Circuit</span>
+            <p>Open emerald grass meadow ground with zero city clutter, wide banked asphalt lanes, red & white rumble kerbs, glowing center chevrons, and luminous safety barriers.</p>
+            <div class="region-features">
+              <span>Grand Prix Races</span> · <span>Open Sightlines</span> · <span>Clear Race Lanes</span> · <span>Time Attack</span>
+            </div>
+            <button class="btn-primary full-width mt-3" data-travel="raceway">ENTER RACEWAY</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. CAMPAIGN MISSION LOG MODAL -->
+    <div id="screen-campaign" class="screen-overlay hidden">
+      <div class="campaign-header">
+        <div>
+          <h2>CAMPAIGN PROGRESSION LOG</h2>
+          <p>Compete against regional racing syndicates, defeat rivals, and claim the DriveLab Championship.</p>
+        </div>
+        <button id="btn-campaign-back" class="btn-glass">BACK</button>
+      </div>
+
+      <div class="campaign-list-wrapper">
+        <div id="campaign-missions-container" class="campaign-missions-grid">
+          <!-- Missions dynamically generated via script.js -->
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. SETTINGS MODAL -->
+    <div id="screen-settings" class="screen-overlay hidden">
+      <div class="settings-modal-card">
+        <div class="settings-header">
+          <h2>GAMEPLAY & GRAPHICS SETTINGS</h2>
+          <button id="btn-settings-close" class="btn-close-x">✕</button>
+        </div>
+        <div class="settings-body">
+          <div class="setting-item">
+            <div class="set-label">
+              <span class="set-name">MASTER AUDIO</span>
+              <span class="set-desc">Synthesized engine audio, tire squeal, and cyber soundtrack</span>
+            </div>
+            <input type="range" id="slider-volume" min="0" max="100" value="80">
+          </div>
+          <div class="setting-item">
+            <div class="set-label">
+              <span class="set-name">GRAPHICS FIDELITY</span>
+              <span class="set-desc">Shadow softness, dynamic lights, and particle density</span>
+            </div>
+            <select id="select-graphics">
+              <option value="high">ULTRA (Soft Shadows, Full Particles)</option>
+              <option value="medium" selected>BALANCED (Medium Shadows, 60fps)</option>
+              <option value="low">PERFORMANCE (No Shadows, Max Speed)</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <div class="set-label">
+              <span class="set-name">STEERING SENSITIVITY</span>
+              <span class="set-desc">Keyboard and touch turning responsiveness</span>
+            </div>
+            <input type="range" id="slider-sensitivity" min="50" max="150" value="100">
+          </div>
+          <div class="setting-item">
+            <div class="set-label">
+              <span class="set-name">TOUCH CONTROLS</span>
+              <span class="set-desc">Display mobile steering and pedal controls</span>
+            </div>
+            <select id="select-touch-mode">
+              <option value="auto" selected>AUTO DETECT</option>
+              <option value="always">ALWAYS ON</option>
+              <option value="off">OFF (KEYBOARD ONLY)</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <div class="set-label">
+              <span class="set-name">RESET CAREER DATA</span>
+              <span class="set-desc">Wipe all saved progress, unlocks, and credits</span>
+            </div>
+            <button id="btn-reset-save" class="btn-danger">RESET LOCAL SAVE</button>
+          </div>
+        </div>
+        <div class="settings-footer">
+          <button id="btn-settings-save" class="btn-primary full-width">APPLY & RETURN</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. PAUSE MENU OVERLAY -->
+    <div id="screen-pause" class="screen-overlay pause-overlay hidden">
+      <div class="pause-card">
+        <h2 class="pause-title">GAME PAUSED</h2>
+        <div class="pause-btn-stack">
+          <button id="btn-pause-resume" class="btn-hero-start full-width">RESUME (ESC)</button>
+          <button id="btn-pause-restart" class="btn-glass full-width">RESTART CURRENT EVENT</button>
+          <button id="btn-pause-garage" class="btn-glass full-width">RETURN TO GARAGE</button>
+          <button id="btn-pause-map" class="btn-glass full-width">WORLD MAP SELECT</button>
+          <button id="btn-pause-settings" class="btn-glass full-width">SETTINGS</button>
+          <button id="btn-pause-title" class="btn-ghost full-width">EXIT TO MAIN MENU</button>
+        </div>
+        <div class="pause-controls-reminder">
+          <div><kbd>W</kbd> / <kbd>↑</kbd> Accel · <kbd>S</kbd> / <kbd>↓</kbd> Brake · <kbd>A</kbd><kbd>D</kbd> Steer</div>
+          <div><kbd>SPACE</kbd> Drift · <kbd>SHIFT</kbd> Nitro · <kbd>C</kbd> Camera · <kbd>R</kbd> Reset</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8. RACE / EVENT RESULTS MODAL (VICTORY OR DEFEAT) -->
+    <div id="modal-results" class="modal-dialog-overlay hidden">
+      <div class="results-card">
+        <div id="results-banner-type" class="results-type-banner victory">EVENT COMPLETE</div>
+        <h2 id="results-headline">1ST PLACE VICTORY!</h2>
+        <p id="results-subtitle" class="results-sub">You dominated the Metrovale Downtown Circuit.</p>
+
+        <div class="results-data-table">
+          <div class="res-row">
+            <span class="res-label">FINISH TIME</span>
+            <span id="res-val-time" class="res-num tabular">01:24.82</span>
+          </div>
+          <div class="res-row">
+            <span class="res-label">FINAL POSITION</span>
+            <span id="res-val-pos" class="res-num tabular">1ST / 4</span>
+          </div>
+          <div class="res-row">
+            <span class="res-label">DRIFT SCORE</span>
+            <span id="res-val-drift" class="res-num tabular">4,280 PTS</span>
+          </div>
+          <div class="res-row highlight-payout">
+            <span class="res-label">PRIZE PURSE</span>
+            <span id="res-val-credits" class="res-num tabular highlight-cyan">+1,500 CR</span>
+          </div>
+          <div class="res-row">
+            <span class="res-label">REPUTATION GAINED</span>
+            <span id="res-val-rep" class="res-num tabular highlight-purple">+250 REP</span>
+          </div>
+        </div>
+
+        <div class="results-actions">
+          <button id="btn-results-retry" class="btn-glass">RETRY EVENT</button>
+          <button id="btn-results-continue" class="btn-primary">CONTINUE TO ROAM</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 9. NOTIFICATION TOAST POPUP (Achievements / Credit Gains) -->
+    <div id="toast-notification" class="toast-card hidden">
+      <div id="toast-icon" class="toast-badge">★</div>
+      <div class="toast-texts">
+        <span id="toast-title" class="toast-title">REPUTATION INCREASED!</span>
+        <span id="toast-desc" class="toast-desc">Unlocked Apex Highlands Mountain Pass</span>
+      </div>
+    </div>
+
+  </div> <!-- End #ui-layer -->
+
+  <!-- Main Game Logic Script -->
+  <script src="script.js"></script>
+</body>
+</html>
